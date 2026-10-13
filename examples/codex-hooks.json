@@ -1,0 +1,7 @@
+{
+  "hooks": {
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "python3 \"$HOME/proofgate/proofgate.py\" hook --agent codex", "timeout": 15 } ] }
+    ]
+  }
+}

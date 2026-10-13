@@ -1,0 +1,4 @@
+{
+  "description": "proofgate-notice: clock.every читает почтовый ящик сессии; ui.render рисует жёлтую полосу над строкой ввода; строка в ленте и строка состояния дублируют её",
+  "modules": ["./proofgate-notice.tsx"]
+}
