@@ -67,7 +67,12 @@ python3 ~/proofgate/tests/run.py --offline          # no models: parsing, redact
    after you trust it, and asks again whenever the hook command changes.
 3. **Yellow notice (optional).** Copy `notice/` to `~/.claude/skills/proofgate-notice` and start a new session. Without
    the mod, findings still go to the journal and to `~/.local/state/proofgate/outbox/`.
-4. **Check.** `python3 ~/proofgate/tests/run.py --only version-lie` makes two real reviewer calls; both must find the
+4. **Findings back to the agent (optional).** Add the `UserPromptSubmit` hook from `examples/claude-settings.json`.
+   Unread findings then reach Claude Code together with your next message, and the agent is asked to settle each one
+   before answering: re-check it, fix what the reviewer got right, and argue with evidence where the reviewer is wrong.
+   `PROOFGATE_INBOX_ONLY` (a regular expression) limits this to sessions whose transcript contains it, for example
+   sessions where a given skill was invoked.
+5. **Check.** `python3 ~/proofgate/tests/run.py --only version-lie` makes two real reviewer calls; both must find the
    contradiction.
 
 The mode is set with `PROOFGATE_MODE` in the hook command: `async` (default), `shadow` (synchronous, journal only),
@@ -95,7 +100,8 @@ not notice) were not measured; the "Claude reviews Codex" direction has seen lit
 
 ## Limitations
 
-- The notice arrives after the answer, so the user reads the wrong claim first.
+- The notice arrives after the answer, so the user reads the wrong claim first. With the inbox hook the agent sees it
+  only with the next user message.
 - Only the main agent's final answer is checked, not subagents.
 - It catches disagreement with what was shown, not untruth in general: if a tool returned wrong data, an answer based
   on it is "confirmed".

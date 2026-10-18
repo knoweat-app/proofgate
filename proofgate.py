@@ -8,13 +8,15 @@ Claude. Скрипт один на обе стороны, вызывается �
   proofgate.py worker --agent X --job FILE          фоновая проверка, которую запускает hook (режим async)
   proofgate.py review --agent X --transcript T      проверить последний ответ транскрипта (отладка)
   proofgate.py prompt --agent X --transcript T      показать, что уйдёт проверяющему (после вырезания секретов)
+  proofgate.py inbox --agent claude                 UserPromptSubmit-хук Claude Code: непрочитанные находки — агенту
 
 Режим — PROOFGATE_MODE: async (по умолчанию: ответ уходит сразу, проверка следом, пользователю — только противоречия),
 shadow (синхронно, только журнал), block (синхронно, возврат агенту), off.
 Пауза без правки команд хуков (trusted_hash Codex не сбивается): файл ~/.local/state/proofgate/PAUSED — хук сразу выходит.
 Настройки через окружение: PROOFGATE_STATE, PROOFGATE_JOURNAL, PROOFGATE_STANDARD, PROOFGATE_CODEX_MODEL,
 PROOFGATE_CLAUDE_MODEL, PROOFGATE_HIDE_PATHS (регулярное выражение путей, вывод команд с которыми скрывается целиком),
-PROOFGATE_MEMORY_INDEX (файл оглавления памяти агента), PROOFGATE_STARTUP=0 (не давать стартовый контекст).
+PROOFGATE_MEMORY_INDEX (файл оглавления памяти агента), PROOFGATE_STARTUP=0 (не давать стартовый контекст),
+PROOFGATE_INBOX_ONLY (регулярное выражение: inbox доставляет находки только в сессии, где оно встречается в транскрипте).
 Внутри проверяющего стоит PROOFGATE_REVIEWER=1 — его собственный Stop-хук сразу выходит.
 """
 import argparse, datetime as dt, hashlib, json, os, re, subprocess, sys, tempfile, time
@@ -458,14 +460,52 @@ def hook(agent):
     print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False))
 
 
+INBOX_ONLY = os.environ.get("PROOFGATE_INBOX_ONLY", "")
+
+
+def inbox(agent):
+    """UserPromptSubmit-хук: находки async-проверки агент сам не видит — она идёт уже после его ответа. Здесь непрочитанные
+    находки почтового ящика сессии подкладываются агенту вместе со следующим сообщением пользователя, с просьбой разобрать
+    каждую до ответа: перепроверить, исправить, если проверяющий прав, или возразить с доказательством, если нет.
+    Прочитанное отмечается файлом <сессия>.seen (отметка «прочитано» мода notice/ — отдельный файл .ack).
+    PROOFGATE_INBOX_ONLY — доставлять только в сессии, в транскрипте которых встречается это регулярное выражение."""
+    if os.environ.get("PROOFGATE_REVIEWER") == "1": return
+    try: data = json.load(sys.stdin)
+    except ValueError: return
+    session, tp = data.get("session_id", ""), data.get("transcript_path")
+    box = os.path.join(OUTBOX, re.sub(r"[^\w.-]", "_", session or "nosession"))
+    try: seen = open(box + ".seen").read().strip()
+    except OSError: seen = ""
+    try: rows = [json.loads(l) for l in open(box + ".jsonl", encoding="utf-8") if l.strip()]
+    except (OSError, ValueError): return
+    new = [r for r in rows if r.get("ts", "") > seen and r.get("agent") == agent]
+    if not new: return
+    if INBOX_ONLY:
+        try:
+            with open(tp, encoding="utf-8", errors="replace") as f:
+                if not any(re.search(INBOX_ONLY, l) for l in f): return
+        except (OSError, TypeError): return
+    items = [(r, it) for r in new for it in r.get("items", [])]
+    with open(box + ".seen", "w") as f: f.write(new[-1]["ts"])
+    if not items: return
+    text = ("Пруфгейт нашёл в твоих прошлых ответах этой сессии расхождения с данными сессии. До ответа пользователю разбери "
+            "каждое: перепроверь по данным сессии или живым запросом; проверяющий прав полностью — исправь без обсуждения "
+            "(утверждение, а если ошибка ушла в код, настройки или документы — и их); прав частично — скажи, что верно, что нет, "
+            "с доказательством, и исправь верную часть; неправ — объясни почему, со ссылкой на вывод команды. Итог — коротким "
+            "разделом «Пруфгейт» в начале ответа.\n"
+            + "\n".join(f"{i}. [{r['ts']}] «{it['claim']}» ({it['type']}): {it['evidence']}" for i, (r, it) in enumerate(items, 1)))
+    print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}, ensure_ascii=False))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["hook", "worker", "review", "prompt"])
+    ap.add_argument("cmd", choices=["hook", "worker", "review", "prompt", "inbox"])
     ap.add_argument("--agent", choices=list(REVIEWERS), required=True, help="чей ответ проверяем")
     ap.add_argument("--transcript"); ap.add_argument("--job")
     ap.add_argument("--answer", help="подменить проверяемый ответ (для тестов)")
     a = ap.parse_args()
     if a.cmd == "hook": return hook(a.agent)
+    if a.cmd == "inbox": return inbox(a.agent)
     if a.cmd == "worker": return worker(a.agent, a.job)
     if not a.transcript: ap.error("нужен --transcript")
     if a.cmd == "prompt":

@@ -1,7 +1,26 @@
 {
   "hooks": {
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "python3 \"$HOME/proofgate/proofgate.py\" hook --agent claude", "timeout": 15 } ] }
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/proofgate/proofgate.py\" hook --agent claude",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$HOME/proofgate/proofgate.py\" inbox --agent claude",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

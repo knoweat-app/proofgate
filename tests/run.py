@@ -84,11 +84,34 @@ def offline(cases, td):
             errs += [f"утечка: {s}" for s in c.get("no_leak", []) if s in prompt]
             print(f"{'OK ' if not errs else 'ERR'} {c['id']:24} {side:6} {'; '.join(errs)}")
             ok &= not errs
+    ok &= inbox_test(td)
     for s, want in (("да", False), ("Готово.", False), ("Коммит 5d1e1dc", True), ("x" * 70, True)):
         got = g.worth_checking(s)
         print(f"{'OK ' if got == want else 'ERR'} предфильтр {s[:20]!r} → {got}")
         ok &= got == want
     return ok
+
+
+def inbox_test(td):
+    """inbox: новые находки — агенту один раз; повтор молчит; PROOFGATE_INBOX_ONLY отсекает чужие сессии."""
+    import contextlib, io
+    g.OUTBOX = os.path.join(td, "outbox"); os.makedirs(g.OUTBOX, exist_ok=True)
+    g.deliver("claude", "s1", [{"claim": "X проверено", "type": "отчёт о действии", "evidence": "B1: не проверено"}], "2026-01-01T00:00:00")
+    tp = write([{"type": "user", "message": {"role": "user", "content": "/deploy"}}], td, "inbox.jsonl")
+    def call(only=""):
+        g.INBOX_ONLY = only
+        buf, sys.stdin = io.StringIO(), io.StringIO(json.dumps({"session_id": "s1", "transcript_path": tp}))
+        with contextlib.redirect_stdout(buf): g.inbox("claude")
+        sys.stdin = sys.__stdin__
+        return buf.getvalue()
+    first = call("/release"); second = call(); third = call()
+    errs = []
+    if first: errs.append("доставлено в сессию, не подходящую под PROOFGATE_INBOX_ONLY")
+    if "X проверено" not in second: errs.append("находка не доставлена")
+    if third: errs.append("повторная доставка")
+    print(f"{'OK ' if not errs else 'ERR'} inbox                    {'; '.join(errs)}")
+    g.INBOX_ONLY = ""
+    return not errs
 
 
 def online(cases, sides, td):

@@ -7,7 +7,7 @@
    в одну из сторон работать не будет; скажи об этом пользователю и спроси, ставить ли одну сторону.
 2. Положи репозиторий в `~/proofgate` и запусти `python3 ~/proofgate/tests/run.py --offline`. Все строки должны
    начинаться с `OK`.
-3. Влей хук из `examples/claude-settings.json` в `~/.claude/settings.json` (массив `hooks.Stop`), сохранив всё, что там
+3. Влей хуки из `examples/claude-settings.json` в `~/.claude/settings.json` (массивы `hooks.Stop` и `hooks.UserPromptSubmit`; второй — по желанию пользователя: находки обратно агенту), сохранив всё, что там
    уже есть. Сделай копию файла перед правкой.
 4. Влей хук из `examples/codex-hooks.json` в `~/.codex/hooks.json` так же. Скажи пользователю, что Codex попросит
    доверить новый хук при следующем запуске, и что без этого проверка ответов Codex не начнётся.
