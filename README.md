@@ -65,7 +65,9 @@ python3 ~/proofgate/tests/run.py --offline          # no models: parsing, redact
 1. **Claude Code.** Add the Stop hook from `examples/claude-settings.json` to `~/.claude/settings.json`.
 2. **Codex.** Add the Stop hook from `examples/codex-hooks.json` to `~/.codex/hooks.json`. Codex runs a new hook only
    after you trust it, and asks again whenever the hook command changes.
-3. **Yellow notice (optional).** Copy `notice/` to `~/.claude/skills/proofgate-notice` and start a new session. Without
+3. **Yellow notice (optional).** Copy `notice/` to `~/.claude/skills/proofgate-notice` and start a new session. The band
+   has two buttons: "Понятно" marks the findings as read, "Консенсус" sends them to the agent in the current session,
+   which fixes what the reviewer got right and asks for your approval where the finding is disputed. Without
    the mod, findings still go to the journal and to `~/.local/state/proofgate/outbox/`.
 4. **Findings back to the agent (optional).** Add the `UserPromptSubmit` hook from `examples/claude-settings.json`.
    Unread findings then reach Claude Code together with your next message, and the agent is asked to settle each one
@@ -78,6 +80,13 @@ python3 ~/proofgate/tests/run.py --offline          # no models: parsing, redact
 The mode is set with `PROOFGATE_MODE` in the hook command: `async` (default), `shadow` (synchronous, journal only),
 `block` (synchronous, returns the answer to the agent for up to four rounds), `off`. To pause without touching settings:
 `touch ~/.local/state/proofgate/PAUSED`.
+
+**Lean mode** (`PROOFGATE_LEAN=1`) spends roughly a fifth of the reviewer quota: answers shorter than 800 characters are
+skipped, the reviewer gets the current turn plus only the user's messages from earlier turns (up to 40,000 characters,
+the full protocol stays available as a file), a short instruction replaces the standard and asks only for
+contradictions in the critical claim types, and checks pause for 30 minutes after the reviewer hits a usage limit. On
+25 labelled snapshots it repeated 16 of 21 substantive findings of the full mode with 24% of the request volume. Off by
+default. Setting it in the Codex hook command changes the command, so Codex will ask you to trust the hook again.
 
 Other settings are environment variables listed at the top of `proofgate.py`. The most important one is
 `PROOFGATE_HIDE_PATHS`: a regular expression of paths; output of commands that touch them is never shown to the reviewer.

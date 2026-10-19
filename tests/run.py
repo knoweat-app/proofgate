@@ -15,6 +15,7 @@
 import argparse, json, os, sys, tempfile
 os.environ.setdefault("PROOFGATE_STARTUP", "0")     # тесты герметичны: память и скиллы хоста в запрос не идут
 os.environ.setdefault("PROOFGATE_HIDE_PATHS", "/srv/app-data/")
+os.environ.setdefault("PROOFGATE_LEAN", "0")        # случаи написаны под полный режим; урезанный проверяет lean_test
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -85,11 +86,38 @@ def offline(cases, td):
             print(f"{'OK ' if not errs else 'ERR'} {c['id']:24} {side:6} {'; '.join(errs)}")
             ok &= not errs
     ok &= inbox_test(td)
+    ok &= lean_test(cases, td)
     for s, want in (("да", False), ("Готово.", False), ("Коммит 5d1e1dc", True), ("x" * 70, True)):
         got = g.worth_checking(s)
         print(f"{'OK ' if got == want else 'ERR'} предфильтр {s[:20]!r} → {got}")
         ok &= got == want
     return ok
+
+
+def lean_test(cases, td):
+    """Урезанный режим: из прошлых ходов в запрос идут только сообщения пользователя, короткая инструкция вместо стандарта,
+    порог длины ответа, пауза после отказа по лимиту."""
+    multi = next(c for c in cases if len(c["turns"]) > 1)
+    saved = g.LEAN, g.BUDGET, g.LIMIT_FLAG
+    g.LEAN, g.BUDGET, g.LIMIT_FLAG = True, 40_000, os.path.join(td, "LIMIT")
+    try:
+        ev = g.redact_events(g.parse("claude", write(claude_jsonl(multi["turns"]), td, "lean.jsonl")))
+        short, full = g.build_protocol(ev)
+        prompt = g.build_prompt(short, "ответ", [], "/tmp/protocol-full.md")
+        old_calls = [e for e in ev if e["turn"] < ev[-1]["turn"] and e["kind"] != "user"]
+        errs = []
+        if old_calls and "в запрос не вошли" not in short: errs.append("вызовы прошлых ходов не отмечены как пропущенные")
+        if any(f"· ход {e['turn']}] ВЫЗОВ" in short for e in old_calls): errs.append("в запрос попал вызов прошлого хода")
+        if "## Что искать" not in prompt or "## Вердикты" in prompt: errs.append("ушёл не короткий запрос")
+        if g.worth_checking("x" * (g.MIN_ANSWER - 1)) or not g.worth_checking("x" * g.MIN_ANSWER): errs.append("порог длины")
+        g.note_limit("network error")
+        if g.limit_paused(): errs.append("пауза без отказа по лимиту")
+        g.note_limit("You're out of credits")
+        if not g.limit_paused(): errs.append("нет паузы после отказа по лимиту")
+    finally:
+        g.LEAN, g.BUDGET, g.LIMIT_FLAG = saved
+    print(f"{'OK ' if not errs else 'ERR'} урезанный режим          {'; '.join(errs)}")
+    return not errs
 
 
 def inbox_test(td):
