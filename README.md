@@ -43,7 +43,7 @@ Only the third one counts as an error in the answer. The full rules are in [PROO
 |---|---|
 | `proofgate.py` | hook, background check, transcript parsers for both platforms, secret redaction, journal |
 | `PROOF-STANDARD.md` | the checking standard; inserted into the reviewer prompt in full |
-| `notice/` | Claude Code mod: yellow band above the prompt and a read mark |
+| `notice/` | Claude Code mod: yellow band above the prompt with two buttons — "Понятно" (mark as read) and "Консенсус" (send the findings to the agent in the current session for review) |
 | `tests/` | 26 cases, each run in both directions |
 | `examples/` | settings fragments for Claude Code and Codex |
 | `docs/LESSONS.ru.md` | history, numbers and pitfalls (in Russian) |

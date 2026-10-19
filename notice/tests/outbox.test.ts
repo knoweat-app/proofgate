@@ -1,6 +1,6 @@
 // Запуск: claude plugin test <путь к папке notice>
 import { describe, expect, test } from 'claude-code/testing'
-import { count, cut, itemLines, logText, parse, pending, safe } from '../hooks/outbox.ts'
+import { consensusPrompt, count, cut, itemLines, logText, parse, pending, safe } from '../hooks/outbox.ts'
 
 const line = (ts: string, claim = 'Треть просадки пришлась на сегодня') =>
   JSON.stringify({ ts, agent: 'claude', items: [{ claim, type: 'факт', evidence: '−332 из −628 — это 53%' }] })
@@ -37,5 +37,14 @@ describe('почтовый ящик пруфгейта', () => {
     expect(cut('a\n\n b', 10)).toBe('a b')
     expect(cut('x'.repeat(50), 10).length).toBe(10)
     expect(itemLines({ claim: 'y'.repeat(500), type: 'факт', evidence: 'z' })[0].length).toBeLessThanOrEqual(222)
+  })
+
+  test('консенсус: правило разбора и все находки по порядку, без обрезки', () => {
+    const long = 'y'.repeat(500)
+    const text = consensusPrompt(parse([line('2026-10-06T12:00:00'), line('2026-10-06T12:05:00', long)].join('\n')))
+    expect(text).toContain('Пользователь нажал «Консенсус»')
+    expect(text).toContain('спроси одобрения пользователя')
+    expect(text).toContain('1. [2026-10-06T12:00:00] «Треть просадки пришлась на сегодня» (факт): −332 из −628 — это 53%')
+    expect(text).toContain(`2. [2026-10-06T12:05:00] «${long}»`)
   })
 })

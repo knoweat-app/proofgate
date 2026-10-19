@@ -4,11 +4,13 @@
  *   - `$.clock.every(4000)` читает почтовый ящик текущей сессии (OUTBOX/<id сессии>.jsonl)
  *   - новое противоречие: строка в ленте (`$.ui.log`), всплывающая подсказка и строка состояния под вводом
  *   - полоса над строкой ввода жёлтым, пока пользователь не нажмёт «Понятно»; отметка о прочтении — файл <id>.ack
+ *   - «Консенсус» (красная надпись): находки уходят в текущую сессию (`$.prompt.submit`), модель разбирает каждую;
+ *     отметки .ack и .seen (последняя — для `proofgate.py inbox`, чтобы он не подложил те же находки второй раз)
  *
  * Проверка ответ не задерживает: сообщение появляется следом, обычно через минуту.
  */
 import type { EngineInterface, Register } from 'claude-code'
-import { count, itemLines, logText, OUTBOX, pending, safe } from './outbox.ts'
+import { consensusPrompt, count, itemLines, logText, OUTBOX, pending, safe } from './outbox.ts'
 import type { Notice } from './outbox.ts'
 
 let timer: { cancel?: () => void } | (() => void) | undefined
@@ -59,6 +61,17 @@ async function acknowledge($: EngineInterface): Promise<void> {
   $.ui.invalidate('ui.render')
 }
 
+async function consensus($: EngineInterface): Promise<void> {
+  const batch = notices
+  const last = batch[batch.length - 1]
+  if (!last) return
+  const box = `${OUTBOX}/${session}`
+  const seen = (await read($, `${box}.seen`)).trim()
+  if (last.ts > seen) await $.fs.write(`${box}.seen`, last.ts).catch(err => $.ui.log(`proofgate-notice: отметка .seen не записана: ${err}`, { to: 'debug' }))
+  await acknowledge($)
+  await $.prompt.submit({ text: consensusPrompt(batch) })
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const r = await next(e)
@@ -96,7 +109,13 @@ export const register: Register = on => {
               )
             }),
           )}
-          <Button key="ack" label="Понятно" onPress={() => acknowledge($)} />
+          <Box flexDirection="row">
+            <Button key="ack" label="Понятно" onPress={() => acknowledge($)} />
+            <Text> </Text>
+            <Button key="consensus" onPress={() => void consensus($).catch(err => $.ui.log(`proofgate-notice: консенсус не отправлен: ${err}`))}>
+              <Text color="red" bold>Консенсус</Text>
+            </Button>
+          </Box>
         </Box>
         {below}
       </Box>

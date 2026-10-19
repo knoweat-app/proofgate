@@ -1,5 +1,5 @@
 {
   "name": "proofgate-notice",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Пруфгейт: показывает жёлтым над строкой ввода утверждения ответа, которые расходятся с данными сессии (их находит фоновая проверка proofgate.py и кладёт в ~/.local/state/proofgate/outbox)."
 }
