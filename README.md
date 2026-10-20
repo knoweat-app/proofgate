@@ -46,6 +46,7 @@ Only the third one counts as an error in the answer. The full rules are in [PROO
 | `notice/` | Claude Code mod: yellow band above the prompt with two buttons — "Понятно" (mark as read) and "Консенсус" (send the findings to the agent in the current session for review) |
 | `tests/` | 26 cases, each run in both directions |
 | `examples/` | settings fragments for Claude Code and Codex |
+| `digest.py` | weekly digest of the journal: findings since the last review, grouped by type, so repeated errors can become rules in the agent instructions (`--done` marks the review) |
 | `docs/LESSONS.ru.md` | history, numbers and pitfalls (in Russian) |
 | `AGENT-INSTALL.md` | instructions for an agent that will install this |
 
