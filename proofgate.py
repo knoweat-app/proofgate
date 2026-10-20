@@ -92,12 +92,30 @@ def _lines(path, limit=None):
     return data.decode("utf-8", "replace").splitlines()
 
 
+def _handback(d):
+    """Отчёт субагента: приходит служебной записью (isMeta) или вложением queued_command; для агента это опора, как вывод инструмента."""
+    o = d.get("origin") if isinstance(d.get("origin"), dict) else {}
+    if d.get("type") == "user" and o.get("kind") == "peer":
+        return o.get("handbackReportText") or o.get("body") or _text((d.get("message") or {}).get("content"))
+    a = d.get("attachment") if isinstance(d.get("attachment"), dict) else {}
+    if a.get("type") == "queued_command" and str(a.get("prompt", "")).lstrip().startswith("<agent-message"):
+        return a["prompt"]
+    return None
+
+
 def parse_claude(path, limit=None):
-    ev, turn = [], 0
+    ev, turn, seen = [], 0, set()
     for line in _lines(path, limit):
         try: d = json.loads(line)
         except ValueError: continue
-        if d.get("isSidechain") or d.get("type") not in ("user", "assistant"): continue
+        if d.get("isSidechain"): continue
+        hb = _handback(d)
+        if hb:
+            key = re.sub(r"\s+", " ", hb.split("The report follows:")[-1]).strip()[:300]
+            if key not in seen:
+                seen.add(key); ev.append({"kind": "output", "text": f"[отчёт субагента]\n{hb}", "turn": turn})
+            continue
+        if d.get("type") not in ("user", "assistant"): continue
         c = (d.get("message") or {}).get("content")
         if d["type"] == "user":
             if isinstance(c, list) and any(isinstance(b, dict) and b.get("type") == "tool_result" for b in c):
